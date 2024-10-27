@@ -41,6 +41,8 @@ func (p *defaultApp) OnInit(
 }
 
 func startAppBlocking(cfg *appConfig) {
+	// log.Fatalf("-------------- startAppBlocking -----------------!!!!!!!!!!!!!!!!")
+
 	appInstance, err := ten.NewApp(&defaultApp{
 		cfg: cfg,
 	})

@@ -29,7 +29,6 @@ CMD_IN_FLUSH = "flush"
 CMD_IN_ON_USER_JOINED = "on_user_joined"
 CMD_IN_ON_USER_LEFT = "on_user_left"
 CMD_OUT_FLUSH = "flush"
-
 DATA_IN_TEXT_DATA_PROPERTY_TEXT = "text"
 DATA_IN_TEXT_DATA_PROPERTY_IS_FINAL = "is_final"
 DATA_OUT_TEXT_DATA_PROPERTY_TEXT = "text"

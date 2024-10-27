@@ -2012,9 +2012,22 @@
               "subscribe_video": true,
               "publish_audio": true,
               "publish_data": true,
+              // "enable_agora_asr": true,
+              // "agora_asr_vendor_name": "microsoft",
+              // "agora_asr_language": "en-US",
+              // "agora_asr_vendor_key": "${env:AZURE_STT_KEY}",
+              // "agora_asr_vendor_region": "${env:AZURE_STT_REGION}",
+              // "agora_asr_session_control_file_path": "session_control.conf",
               "subscribe_video_pix_fmt": 4
             }
           },
+          // {
+          //   "type": "extension",
+          //   "name": "interrupt_detector",
+          //   "addon": "interrupt_detector",
+          //   "extension_group": "default",
+          //   "app": "localhost"
+          // },
           {
             "type": "extension",
             "name": "openai_chatgpt",
@@ -2035,6 +2048,18 @@
               "enable_tools": true
             }
           },
+          // {
+          //   "type": "extension",
+          //   "name": "azure_tts",
+          //   "addon": "azure_tts",
+          //   "extension_group": "tts",
+          //   "app": "localhost",
+          //   "property": {
+          //     "azure_subscription_key": "${env:AZURE_TTS_KEY}",
+          //     "azure_subscription_region": "${env:AZURE_TTS_REGION}",
+          //     "azure_synthesis_voice_name": "en-US-AndrewMultilingualNeural"
+          //   }
+          // },
           {
             "type": "extension",
             "name": "message_collector",
@@ -2053,7 +2078,19 @@
             "name": "chatgpt",
             "addon": "default_extension_group",
             "app": "localhost"
-          }
+          },
+          // {
+          //   "type": "extension_group",
+          //   "name": "tts",
+          //   "addon": "default_extension_group",
+          //   "app": "localhost"
+          // },
+          // {
+          //   "type": "extension_group",
+          //   "name": "transcriber",
+          //   "addon": "default_extension_group",
+          //   "app": "localhost"
+          // }
         ],
         "connections": [
           {
@@ -2082,6 +2119,28 @@
                 ]
               }
             ],
+            // "data": [
+            //   {
+            //     "name": "text_data",
+            //     "dest": [
+            //       {
+            //         "app": "localhost",
+            //         "extension_group": "default",
+            //         "extension": "interrupt_detector"
+            //       },
+            //       {
+            //         "app": "localhost",
+            //         "extension_group": "chatgpt",
+            //         "extension": "openai_chatgpt"
+            //       },
+            //       {
+            //         "app": "localhost",
+            //         "extension_group": "transcriber",
+            //         "extension": "message_collector"
+            //       }
+            //     ]
+            //   }
+            // ],
             "video_frame": [
               {
                 "name": "video_frame",
@@ -2104,6 +2163,9 @@
                 "name": "flush",
                 "dest": [
                   {
+                    // "app": "localhost",
+                    // "extension_group": "tts",
+                    // "extension": "azure_tts"
                     "app": "localhost",
                     "extension_group": "transcriber",
                     "extension": "message_collector"
@@ -2115,6 +2177,11 @@
               {
                 "name": "text_data",
                 "dest": [
+                  // {
+                  //   "app": "localhost",
+                  //   "extension_group": "tts",
+                  //   "extension": "azure_tts"
+                  // },
                   {
                     "app": "localhost",
                     "extension_group": "transcriber",
@@ -2124,6 +2191,35 @@
               }
             ]
           },
+          // {
+          //   "app": "localhost",
+          //   "extension_group": "tts",
+          //   "extension": "azure_tts",
+          //   "cmd": [
+          //     {
+          //       "name": "flush",
+          //       "dest": [
+          //         {
+          //           "app": "localhost",
+          //           "extension_group": "default",
+          //           "extension": "agora_rtc"
+          //         }
+          //       ]
+          //     }
+          //   ],
+          //   "audio_frame": [
+          //     {
+          //       "name": "pcm_frame",
+          //       "dest": [
+          //         {
+          //           "app": "localhost",
+          //           "extension_group": "default",
+          //           "extension": "agora_rtc"
+          //         }
+          //       ]
+          //     }
+          //   ]
+          // },
           {
             "app": "localhost",
             "extension_group": "transcriber",
@@ -2141,6 +2237,23 @@
               }
             ]
           }
+          // {
+          //   "app": "localhost",
+          //   "extension_group": "default",
+          //   "extension": "interrupt_detector",
+          //   "cmd": [
+          //     {
+          //       "name": "flush",
+          //       "dest": [
+          //         {
+          //           "app": "localhost",
+          //           "extension_group": "chatgpt",
+          //           "extension": "openai_chatgpt"
+          //         }
+          //       ]
+          //     }
+          //   ]
+          // }
         ]
       },
       {
