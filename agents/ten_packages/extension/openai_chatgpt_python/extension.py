@@ -180,8 +180,12 @@ class OpenAIChatGPTExtension(Extension):
             if self.greeting and self.users_count == 1:
                 try:
                     output_data = Data.create("text_data")
+                    # output_data.set_property_string(
+                    #     DATA_OUT_TEXT_DATA_PROPERTY_TEXT, self.greeting)
+
                     output_data.set_property_string(
-                        DATA_OUT_TEXT_DATA_PROPERTY_TEXT, self.greeting)
+                        DATA_OUT_TEXT_DATA_PROPERTY_TEXT, "Hello World!")
+                        
                     output_data.set_property_bool(
                         DATA_OUT_TEXT_DATA_PROPERTY_TEXT_END_OF_SEGMENT, True)
                     ten_env.send_data(output_data)

@@ -179,11 +179,18 @@ class OpenAIChatGPTExtension(Extension):
             if self.greeting and self.users_count == 1:
                 try:
                     output_data = Data.create("text_data")
+                    # output_data.set_property_string(
+                    #     DATA_OUT_TEXT_DATA_PROPERTY_TEXT, self.greeting)
+
                     output_data.set_property_string(
-                        DATA_OUT_TEXT_DATA_PROPERTY_TEXT, self.greeting)
+                        DATA_OUT_TEXT_DATA_PROPERTY_TEXT, "Hello World!")
+
                     output_data.set_property_bool(
                         DATA_OUT_TEXT_DATA_PROPERTY_TEXT_END_OF_SEGMENT, True)
                     ten_env.send_data(output_data)
+
+
+
                     logger.info(f"Greeting [{self.greeting}] sent")
                 except Exception as err:
                     logger.info(
@@ -228,6 +235,12 @@ class OpenAIChatGPTExtension(Extension):
         self.image_data = video_frame.get_buf()
         self.image_width = video_frame.get_width()
         self.image_height = video_frame.get_height()
+
+        logger.info(f"!!!!!!!on_video_frame !!!!!!!")
+
+        self._send_data(ten_env, "I got one frame.", False)
+
+        # self.queue.put([TASK_TYPE_CHAT_COMPLETION, "please tell me what it is in image."])
         return
 
     async def _process_queue(self, ten_env: TenEnv):
