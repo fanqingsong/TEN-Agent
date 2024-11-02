@@ -85,17 +85,38 @@ class OpenAIChatGPTExtension(Extension):
         logger.info("on_init")
         ten_env.on_init_done()
 
+
+    async def print_every_three_seconds(self, ten_env) :
+        logger.info("------------ enter print_every_three_seconds  ------")
+
+        # self._send_data(ten_env, "I got one frame.", True)
+
+        while True:
+            logger.info("------------ before sleep  ------")
+            await asyncio.sleep(10)
+            logger.info(f"----------- set one image instruction -------------")
+
+            self._send_data(ten_env, "I have set one picture detection instruction.", True)
+
+            # await self.queue.put([TASK_TYPE_CHAT_COMPLETION, "please tell me what it is in image."])
+            await self.queue.put([TASK_TYPE_CHAT_COMPLETION_WITH_VISION, "please tell me what it is in image."])
+
+
     def on_start(self, ten_env: TenEnv) -> None:
         logger.info("on_start")
 
         self.loop = asyncio.new_event_loop()
+
+        self.loop.create_task(self._process_queue(ten_env))
+
+        logger.info("------------ setup interval hook ---- ")
+        self.loop.create_task(self.print_every_three_seconds(ten_env))
 
         def start_loop():
             asyncio.set_event_loop(self.loop)
             self.loop.run_forever()
         threading.Thread(target=start_loop, args=[]).start()
 
-        self.loop.create_task(self._process_queue(ten_env))
 
         # Prepare configuration
         openai_chatgpt_config = OpenAIChatGPTConfig.default_config()
@@ -189,8 +210,6 @@ class OpenAIChatGPTExtension(Extension):
                         DATA_OUT_TEXT_DATA_PROPERTY_TEXT_END_OF_SEGMENT, True)
                     ten_env.send_data(output_data)
 
-
-
                     logger.info(f"Greeting [{self.greeting}] sent")
                 except Exception as err:
                     logger.info(
@@ -236,18 +255,23 @@ class OpenAIChatGPTExtension(Extension):
         self.image_width = video_frame.get_width()
         self.image_height = video_frame.get_height()
 
-        logger.info(f"!!!!!!!on_video_frame !!!!!!!")
+        # logger.info(f"!!!!!!!on_video_frame !!!!!!!")
 
-        self._send_data(ten_env, "I got one frame.", False)
+        # self._send_data(ten_env, "I got one frame.", False)
 
         # self.queue.put([TASK_TYPE_CHAT_COMPLETION, "please tell me what it is in image."])
         return
 
     async def _process_queue(self, ten_env: TenEnv):
+        logger.info("------------enter _process_queue --------")
+
         """Asynchronously process queue items one by one."""
         while True:
+            logger.info(f"----------- before queue detection -------------")
             # Wait for an item to be available in the queue
             [task_type, message] = await self.queue.get()
+            logger.info(f'------------ got one queue(task_type={task_type}/message={message}) in proccess queue  --------')
+
             try:
                 # Create a new task for the new message
                 self.current_task = asyncio.create_task(
