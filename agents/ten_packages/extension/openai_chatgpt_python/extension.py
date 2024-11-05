@@ -10,6 +10,7 @@ import json
 import random
 import threading
 import traceback
+import time
 
 from .helper import AsyncEventEmitter, AsyncQueue, get_current_time, get_property_bool, get_property_float, get_property_int, get_property_string, parse_sentences, rgb2base64jpeg
 from .openai import OpenAIChatGPT, OpenAIChatGPTConfig
@@ -24,12 +25,12 @@ from ten import (
     Data,
 )
 from .log import logger
+from .fire_alarmer import FireAlarmer
 
 CMD_IN_FLUSH = "flush"
 CMD_IN_ON_USER_JOINED = "on_user_joined"
 CMD_IN_ON_USER_LEFT = "on_user_left"
 CMD_OUT_FLUSH = "flush"
-
 DATA_IN_TEXT_DATA_PROPERTY_TEXT = "text"
 DATA_IN_TEXT_DATA_PROPERTY_IS_FINAL = "is_final"
 DATA_OUT_TEXT_DATA_PROPERTY_TEXT = "text"
@@ -65,7 +66,9 @@ class OpenAIChatGPTExtension(Extension):
     image_height = 0
     checking_vision_text_items = []
     loop = None
+    fire_alarm_switch = False
     sentence_fragment = ""
+    fire_alarmer = FireAlarmer()
 
     # Create the queue for message processing
     queue = AsyncQueue()
@@ -79,6 +82,24 @@ class OpenAIChatGPTExtension(Extension):
                 "description": "Get the image from camera. Call this whenever you need to understand the input camera image like you have vision capability, for example when user asks 'What can you see?' or 'Can you see me?'",
             },
             "strict": True,
+        },
+        {
+            "type": "function",
+            "function": {
+                # ensure you use gpt-4o or later model if you need image recognition, gpt-4o-mini does not work quite well in this case
+                "name": "turn_on_fire_alarm",
+                "description": "this tool will turn on fire alarm mode for this agent.",
+            },
+            "strict": True,
+        },
+        {
+            "type": "function",
+            "function": {
+                # ensure you use gpt-4o or later model if you need image recognition, gpt-4o-mini does not work quite well in this case
+                "name": "turn_off_fire_alarm",
+                "description": "this tool will turn off fire alarm mode for this agent.",
+            },
+            "strict": True,
         }
     ]
 
@@ -86,17 +107,45 @@ class OpenAIChatGPTExtension(Extension):
         logger.info("on_init")
         ten_env.on_init_done()
 
+
+    async def monitor_fire_risk_and_alarm(self, ten_env) :
+        logger.info("------------ enter monitor_fire_risk_and_alarm  ------")
+
+        while True:
+            logger.info("------------ fire alarm will sleep 20s ------")
+            await asyncio.sleep(20)
+
+            # switch is not started, skip
+            if not self.fire_alarm_switch:
+                logger.info("----- fire alarm is off， skip set instruction ------")
+                continue
+
+            logger.info(f"----------- start a fire alarm detection -------------")
+            if self.image_data is not None:
+                url = rgb2base64jpeg(
+                    self.image_data, self.image_width, self.image_height)
+                logger.info(f"fire alarmer detect with image data: {url}")
+                alarm_msg = self.fire_alarmer.run(url)
+                if 'No Fire Alarm.' == ret:
+                    pass
+                else:
+                    self._send_data(ten_env, alarm_msg, True)
+
+
     def on_start(self, ten_env: TenEnv) -> None:
         logger.info("on_start")
 
         self.loop = asyncio.new_event_loop()
 
+        self.loop.create_task(self._process_queue(ten_env))
+
+        logger.info("------------ setup fire alarm monitor task -----------")
+        self.loop.create_task(self.monitor_fire_risk_and_alarm(ten_env))
+
         def start_loop():
             asyncio.set_event_loop(self.loop)
             self.loop.run_forever()
         threading.Thread(target=start_loop, args=[]).start()
-
-        self.loop.create_task(self._process_queue(ten_env))
 
         # Prepare configuration
         openai_chatgpt_config = OpenAIChatGPTConfig.default_config()
@@ -109,6 +158,10 @@ class OpenAIChatGPTExtension(Extension):
         if not openai_chatgpt_config.api_key:
             logger.info(f"API key is missing, exiting on_start")
             return
+
+        # import os
+        # if not os.environ.get("OPENAI_API_KEY"):
+        #     os.environ["OPENAI_API_KEY"] = openai_chatgpt_config.api_key
 
         # Optional properties
         openai_chatgpt_config.model = get_property_string(
@@ -179,17 +232,33 @@ class OpenAIChatGPTExtension(Extension):
             # Send greeting when first user joined
             if self.greeting and self.users_count == 1:
                 try:
+                    logger.info("------------ get on user joined --------")
+
                     output_data = Data.create("text_data")
                     # output_data.set_property_string(
                     #     DATA_OUT_TEXT_DATA_PROPERTY_TEXT, self.greeting)
 
                     output_data.set_property_string(
                         DATA_OUT_TEXT_DATA_PROPERTY_TEXT, "Hello World!")
-                        
+
                     output_data.set_property_bool(
                         DATA_OUT_TEXT_DATA_PROPERTY_TEXT_END_OF_SEGMENT, True)
                     ten_env.send_data(output_data)
+
                     logger.info(f"Greeting [{self.greeting}] sent")
+
+                    # test turn on or off fire alarm mode
+                    # Start an asynchronous task for handling chat completion
+                    logger.info(f"----------- now turn on firewall alarm -------------")
+                    asyncio.run_coroutine_threadsafe(self.queue.put(
+                        [TASK_TYPE_CHAT_COMPLETION, "please turn on fire alarm function."]), self.loop)
+
+                    # test turn on or off fire alarm mode
+                    # Start an asynchronous task for handling chat completion
+                    # logger.info(f"----------- now turn off firewall alarm -------------")
+                    # asyncio.run_coroutine_threadsafe(self.queue.put(
+                    #     [TASK_TYPE_CHAT_COMPLETION, "please turn off fire alarm function."]), self.loop)
+
                 except Exception as err:
                     logger.info(
                         f"Failed to send greeting [{self.greeting}]: {err}")
@@ -236,10 +305,15 @@ class OpenAIChatGPTExtension(Extension):
         return
 
     async def _process_queue(self, ten_env: TenEnv):
+        logger.info("------------enter _process_queue --------")
+
         """Asynchronously process queue items one by one."""
         while True:
+            logger.info(f"----------- before queue detection -------------")
             # Wait for an item to be available in the queue
             [task_type, message] = await self.queue.get()
+            logger.info(f'------------ got one queue(task_type={task_type}/message={message}) in proccess queue  --------')
+
             try:
                 # Create a new task for the new message
                 self.current_task = asyncio.create_task(
@@ -260,6 +334,8 @@ class OpenAIChatGPTExtension(Extension):
 
     async def _run_chatflow(self, ten_env: TenEnv, task_type: str, input_text: str, memory):
         """Run the chatflow asynchronously."""
+        logger.info("------------------ run chatflow --------------")
+
         memory_cache = []
         try:
             logger.info(f"for input text: [{input_text}] memory: {memory}")
@@ -296,23 +372,39 @@ class OpenAIChatGPTExtension(Extension):
 
             # Create an async listener to handle tool calls and content updates
             async def handle_tool_call(tool_call):
+                logger.info(f"----------- handle_tool_call tool_call.function.name={tool_call.function.name} -------------")
                 logger.info(f"tool_call: {tool_call}")
+
                 if tool_call.function.name == "get_vision_image":
                     # Append the vision image to the last assistant message
                     await self.queue.put([TASK_TYPE_CHAT_COMPLETION_WITH_VISION, input_text], True)
+                elif tool_call.function.name == "turn_on_fire_alarm":
+                    if not self.fire_alarm_switch:
+                        self.fire_alarm_switch = True
+                        self._send_data(ten_env, "fire alarm is turn on.", True)
+                elif tool_call.function.name == "turn_off_fire_alarm":
+                    if self.fire_alarm_switch:
+                        self.fire_alarm_switch = False
+                        self._send_data(ten_env, "fire alarm is turn off.", True)
 
             async def handle_content_update(content: str):
+                logger.info(f"----------- handle_content_update content={content} -------------")
+
                 # Append the content to the last assistant message
                 for item in reversed(memory_cache):
                     if item.get('role') == 'assistant':
                         item['content'] = item['content'] + content
                         break
+
                 sentences, self.sentence_fragment = parse_sentences(
                     self.sentence_fragment, content)
+
                 for s in sentences:
                     self._send_data(ten_env, s, False)
 
             async def handle_content_finished(full_content: str):
+                logger.info(f"----------- handle_content_finished full_content={full_content} -------------")
+
                 content_finished_event.set()
 
             listener = AsyncEventEmitter()

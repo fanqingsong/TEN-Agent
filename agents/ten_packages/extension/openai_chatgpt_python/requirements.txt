@@ -2,3 +2,5 @@ openai
 numpy
 requests[socks]
 pillow
+langchain
+langchain_openai

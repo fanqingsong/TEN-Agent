@@ -1,6 +1,6 @@
 services:
     ten_agent_dev:
-        image: tenagentdev_virtualbox:1.0
+        image: ghcr.io/ten-framework/ten_agent_build:0.1.0
         container_name: ten_agent_dev
         platform: linux/amd64
         tty: true
@@ -61,5 +61,5 @@ services:
         environment:
             - TEN_DEV_SERVER_URL=http://ten_agent_dev:49483
 networks:
-  ten_agent_network:
-    driver: bridge
+    ten_agent_network:
+        driver: bridge
