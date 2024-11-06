@@ -13,7 +13,7 @@ import traceback
 import time
 
 from .helper import AsyncEventEmitter, AsyncQueue, get_current_time, get_property_bool, get_property_float, get_property_int, get_property_string, parse_sentences, rgb2base64jpeg
-from .openai import OpenAIChatGPT, OpenAIChatGPTConfig
+from .openai import OpenAIChatGPT, OpenAIChatGPTConfig, ToolCall
 from ten import (
     AudioFrame,
     VideoFrame,
@@ -98,6 +98,27 @@ class OpenAIChatGPTExtension(Extension):
                 # ensure you use gpt-4o or later model if you need image recognition, gpt-4o-mini does not work quite well in this case
                 "name": "turn_off_fire_alarm",
                 "description": "this tool will turn off fire alarm mode for this agent.",
+            },
+            "strict": True,
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "consult_telecommunication_specialty",
+                "description": "this tool will give you knowledge of telecommunication scope, cause it is based on knowledge database of telecommunication.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": f"""
+                                query extracting info to answer the user's question.
+                                The query should be returned in plain text, not in JSON.
+                                """,
+                        }
+                    },
+                    "required": ["query"],
+                },
             },
             "strict": True,
         }
@@ -249,15 +270,23 @@ class OpenAIChatGPTExtension(Extension):
 
                     # test turn on or off fire alarm mode
                     # Start an asynchronous task for handling chat completion
-                    logger.info(f"----------- now turn on firewall alarm -------------")
-                    asyncio.run_coroutine_threadsafe(self.queue.put(
-                        [TASK_TYPE_CHAT_COMPLETION, "please turn on fire alarm function."]), self.loop)
+                    # logger.info(f"----------- now turn on firewall alarm -------------")
+                    # asyncio.run_coroutine_threadsafe(self.queue.put(
+                    #     [TASK_TYPE_CHAT_COMPLETION, "please turn on fire alarm function."]), self.loop)
 
                     # test turn on or off fire alarm mode
                     # Start an asynchronous task for handling chat completion
                     # logger.info(f"----------- now turn off firewall alarm -------------")
                     # asyncio.run_coroutine_threadsafe(self.queue.put(
                     #     [TASK_TYPE_CHAT_COMPLETION, "please turn off fire alarm function."]), self.loop)
+
+                    # logger.info(f"----------- test stream tools -------------")
+                    # asyncio.run_coroutine_threadsafe(self.queue.put(
+                    #     [TASK_TYPE_CHAT_COMPLETION, "please what is it in camera."]), self.loop)
+
+                    logger.info(f"----------- test rag tools -------------")
+                    asyncio.run_coroutine_threadsafe(self.queue.put(
+                        [TASK_TYPE_CHAT_COMPLETION, "please what is TCP/IP in telecommunication scope."]), self.loop)
 
                 except Exception as err:
                     logger.info(
@@ -370,22 +399,46 @@ class OpenAIChatGPTExtension(Extension):
             # Create an asyncio.Event to signal when content is finished
             content_finished_event = asyncio.Event()
 
+            def consult_telecommunication_specialty(query):
+                return "TCP/IP is the basic of data communication"
+
             # Create an async listener to handle tool calls and content updates
-            async def handle_tool_call(tool_call):
-                logger.info(f"----------- handle_tool_call tool_call.function.name={tool_call.function.name} -------------")
+            async def handle_tool_call(tool_call: dict[ToolCall]):
+                logger.info(f"----------- handle_tool_call tool_call={tool_call} -------------")
                 logger.info(f"tool_call: {tool_call}")
 
-                if tool_call.function.name == "get_vision_image":
-                    # Append the vision image to the last assistant message
-                    await self.queue.put([TASK_TYPE_CHAT_COMPLETION_WITH_VISION, input_text], True)
-                elif tool_call.function.name == "turn_on_fire_alarm":
-                    if not self.fire_alarm_switch:
-                        self.fire_alarm_switch = True
-                        self._send_data(ten_env, "fire alarm is turn on.", True)
-                elif tool_call.function.name == "turn_off_fire_alarm":
-                    if self.fire_alarm_switch:
-                        self.fire_alarm_switch = False
-                        self._send_data(ten_env, "fire alarm is turn off.", True)
+                for _, one_tool_call in tool_call.items():
+                    one_tool_call: ToolCall = one_tool_call
+                    tool_call_id = one_tool_call.id
+                    tool_function_name = one_tool_call.function_name
+                    tool_function_args = json.loads(one_tool_call.function_arguments)
+
+                    if one_tool_call.function_name == "get_vision_image":
+                        # Append the vision image to the last assistant message
+                        await self.queue.put([TASK_TYPE_CHAT_COMPLETION_WITH_VISION, input_text], True)
+                    elif one_tool_call.function_name == "turn_on_fire_alarm":
+                        if not self.fire_alarm_switch:
+                            self.fire_alarm_switch = True
+                            self._send_data(ten_env, "fire alarm is turn on.", True)
+                    elif one_tool_call.function_name == "turn_off_fire_alarm":
+                        if self.fire_alarm_switch:
+                            self.fire_alarm_switch = False
+                            self._send_data(ten_env, "fire alarm is turn off.", True)
+                    elif one_tool_call.function_name == "consult_telecommunication_specialty":
+                        tool_query_str = tool_function_args['query']
+                        results = consult_telecommunication_specialty(tool_query_str)
+
+                        self._send_data(ten_env, results, True)
+
+                        # self._append_memory({
+                        #     "role": "tool",
+                        #     "tool_call_id": tool_call_id,
+                        #     "name": tool_function_name,
+                        #     "content": results
+                        # })
+
+                        # await self.queue.put([TASK_TYPE_CHAT_COMPLETION, input_text], True)
+
 
             async def handle_content_update(content: str):
                 logger.info(f"----------- handle_content_update content={content} -------------")
@@ -428,7 +481,7 @@ class OpenAIChatGPTExtension(Extension):
             for m in memory_cache:
                 self._append_memory(m)
 
-    def _append_memory(self, message: str):
+    def _append_memory(self, message: dict):
         if len(self.memory) > self.max_memory_length:
             self.memory.pop(0)
         self.memory.append(message)

@@ -5,7 +5,11 @@
 # Copyright (c) 2024 Agora IO. All rights reserved.
 #
 #
+import collections
 import random
+from dataclasses import dataclass
+from operator import index
+
 import requests
 from openai import AsyncOpenAI
 from typing import List, Dict, Any, Optional
@@ -53,7 +57,12 @@ class OpenAIChatGPTConfig:
             seed=random.randint(0, 10000),
             proxy_url=""
         )
-    
+
+@dataclass
+class ToolCall:
+    id: str = ""
+    function_name: str = ""
+    function_arguments: str = ""
 
 class OpenAIChatGPT:
     client = None
@@ -102,27 +111,64 @@ class OpenAIChatGPT:
         
         full_content = ""
 
+        '''
+        contain tools expected to be called
+        the one tool has the following three parts:
+        {
+            id: xx,
+            function: {
+                name: xxx,
+                arguments: "{}"
+            }
+        }
+
+        reference: https://github.com/openai/openai-cookbook/blob/main/examples/How_to_call_functions_with_chat_models.ipynb
+        tool_call_id = tool_calls[0].id
+        tool_function_name = tool_calls[0].function.name
+        tool_query_string = json.loads(tool_calls[0].function.arguments)['query']
+        '''
+        tool_call_dict = collections.defaultdict(ToolCall)
+
         async for chat_completion in response:
             choice = chat_completion.choices[0]
             delta = choice.delta
 
-            content = delta.content if delta and delta.content else ""
-
-            # Emit content update event (fire-and-forget)
-            if listener and content:
-                listener.emit('content_update', content)
-
-            full_content += content
+            logger.info(f"choice: {choice}")
+            logger.info(f"delta: {delta}")
 
             # Check for tool calls
             if delta.tool_calls:
                 for tool_call in delta.tool_calls:
                     logger.info(f"tool_call: {tool_call}")
 
-                    # Emit tool call event (fire-and-forget)
-                    if listener:
-                        listener.emit('tool_call', tool_call)
+                    tool_call_index = tool_call.index
+                    tool_call_id = tool_call.id
+                    tool_call_func_name = tool_call.function.name
+                    tool_call_func_args = tool_call.function.arguments
+
+                    if tool_call_id:
+                        tool_call_dict[tool_call_index].id = tool_call_id
+
+                    if tool_call_func_name:
+                        tool_call_dict[tool_call_index].function_name = tool_call_func_name
+
+                    if tool_call_func_args:
+                        tool_call_dict[tool_call_index].function_arguments += tool_call_func_args
+            elif delta.content:
+                content = delta.content if delta and delta.content else ""
+
+                # Emit content update event (fire-and-forget)
+                if listener and content:
+                    listener.emit('content_update', content)
+
+                full_content += content
+            else:
+                pass
 
         # Emit content finished event after the loop completes
         if listener:
             listener.emit('content_finished', full_content)
+
+        # Emit tool call event (fire-and-forget)
+        if listener:
+            listener.emit('tool_call', tool_call_dict)
