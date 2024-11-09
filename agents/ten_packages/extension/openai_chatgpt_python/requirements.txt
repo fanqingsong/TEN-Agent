@@ -4,3 +4,26 @@ requests[socks]
 pillow
 langchain
 langchain_openai
+
+llama-index-embeddings-openai
+llama-index-embeddings-clip
+llama-index-llms-openai
+llama-index-readers-file
+llama-index 
+pypdf
+llama-index-multi-modal-llms-openai
+llama-index-vector-stores-qdrant
+llama_index 
+ftfy 
+regex 
+tqdm
+# torch 
+# torchvision
+matplotlib 
+scikit-image
+qdrant_client
+langchain_community
+
+
+
+

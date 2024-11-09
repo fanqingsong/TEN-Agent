@@ -26,6 +26,8 @@ from ten import (
 )
 from .log import logger
 from .fire_alarmer import FireAlarmer
+from .rag.rag_module import final_response
+
 
 CMD_IN_FLUSH = "flush"
 CMD_IN_ON_USER_JOINED = "on_user_joined"
@@ -302,9 +304,9 @@ class OpenAIChatGPTExtension(Extension):
                     # asyncio.run_coroutine_threadsafe(self.queue.put(
                     #     [TASK_TYPE_CHAT_COMPLETION, "please what is it in camera."]), self.loop)
 
-                    # logger.info(f"----------- test rag tools -------------")
-                    # asyncio.run_coroutine_threadsafe(self.queue.put(
-                    #     [TASK_TYPE_CHAT_COMPLETION, "please what is TCP/IP in telecommunication scope."]), self.loop)
+                    logger.info(f"----------- test rag tools -------------")
+                    asyncio.run_coroutine_threadsafe(self.queue.put(
+                        [TASK_TYPE_CHAT_COMPLETION, "please tell me what is RAN in telecommunication scope."]), self.loop)
 
                 except Exception as err:
                     logger.info(
@@ -417,8 +419,8 @@ class OpenAIChatGPTExtension(Extension):
             # Create an asyncio.Event to signal when content is finished
             content_finished_event = asyncio.Event()
 
-            def consult_telecommunication_specialty(query):
-                return "TCP/IP is the basic of data communication"
+            def consult_telecommunication_specialty(question):
+                return final_response.get_final_response(question)
 
             # Create an async listener to handle tool calls and content updates
             async def handle_tool_call(tool_call: dict[ToolCall]):
