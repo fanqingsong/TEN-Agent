@@ -60,6 +60,50 @@ services:
             - ten_agent_network
         environment:
             - TEN_DEV_SERVER_URL=http://ten_agent_dev:49483
+
+    prometheus:
+        image: prom/prometheus:latest
+        volumes:
+            - ./prometheus/:/etc/prometheus/
+            - prometheus_data:/prometheus
+        command:
+            - '--config.file=/etc/prometheus/prometheus.yml'
+            - '--storage.tsdb.path=/prometheus'
+            - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+            - '--web.console.templates=/usr/share/prometheus/consoles'
+        ports:
+            - "9090:9090"
+        networks:
+            - ten_agent_network
+        restart: always
+
+    pushgateway:
+        image: prom/pushgateway:latest
+        ports:
+            - "9091:9091"
+        networks:
+            - ten_agent_network
+        restart: always
+
+    grafana:
+        image: grafana/grafana:latest
+        restart: always
+        depends_on:
+            - prometheus
+        ports:
+            - "9092:3000"
+        volumes:
+            - grafana_data:/var/lib/grafana
+        #            - ./grafana/provisioning/:/etc/grafana/provisioning/
+        env_file:
+            - ./grafana/config.monitoring
+        networks:
+            - ten_agent_network
+
 networks:
     ten_agent_network:
         driver: bridge
+
+volumes:
+    prometheus_data: {}
+    grafana_data: {}
